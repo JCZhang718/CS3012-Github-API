@@ -24,7 +24,6 @@ function toggleSignIn() {
 			request.onload = getReposAndPrint;
 			request.open('get', 'https://api.github.com/user/repos?access_token=' + token, true);
 			request.send();
-			console.log(result);
 			// The signed-in user info.
 			var user = result.user;
 		})
@@ -103,8 +102,9 @@ window.onload = function() {
 };
 
 function getReposAndPrint() {
+	google.charts.load("current", {packages:['corechart']});
+	
 	repos = JSON.parse(this.responseText);
-	console.log(repos);
 	var repoList = "";
 	for (var i = 0; i < repos.length; i++)
 	{
@@ -113,15 +113,24 @@ function getReposAndPrint() {
 	}
 	document.getElementById('repositories').textContent = repoList;
 	
-	google.charts.load("current", {packages:['corechart']});
-	google.charts.setOnLoadCallback(drawChart);
+	var commitCountArray = new Array(0,0,0,0); //[<5, 5-10, 10-20, 20+]
+	for (var i = 0; i < repos.length; i++)
+	{
+		var request = new XMLHttpRequest();
+		request.onload = getCommitsAndFillArray;
+		request.open('get', repos[i].url + '/commits?access_token=' + token, true);
+		request.send();
+	}
+	
 	var numPrivate = 0, numPublic = 0;
 	for (var i = 0; i < repos.length; i++)
 	{
 		if (repos[i].private) numPrivate++;
 		else numPublic++;
 	}
-	function drawChart() {
+	
+	google.charts.setOnLoadCallback(drawColumnChart);
+	function drawColumnChart() {
 		var data = google.visualization.arrayToDataTable([
 			["type", "number", { role: "style" } ],
 			["public", numPublic, "red"],
@@ -146,5 +155,47 @@ function getReposAndPrint() {
 		var chart = new google.visualization.ColumnChart(document.getElementById("repoColumnChart"));
 		chart.draw(view, options);
 	}
+	
+		
+	function getCommitsAndFillArray() {
+		commits = JSON.parse(this.responseText);
+		if (commits.length <= 5)
+		{
+			commitCountArray[0]++;
+		}
+		else if (commits.length <= 10)
+		{
+			commitCountArray[1]++;
+		}
+		else if (commits.length <= 20)
+		{
+			commitCountArray[2]++;
+		}
+		else
+		{
+			commitCountArray[3]++;
+		}
+		google.charts.setOnLoadCallback(drawBarChart);
+	}
+		
+	function drawBarChart() {
+		var data = google.visualization.arrayToDataTable([
+			["number of commits", "number of repos"],
+			["0-5", commitCountArray[0]],
+			["5-10", commitCountArray[1]],
+			["10-20", commitCountArray[2]],
+			["20+", commitCountArray[3]]
+		]);
+		
+		var options = {'title':'How Many Commits Your Repositories Tend To Have',
+					   'width':600,
+					   'height':600};
+					   
+		var chart = new google.visualization.PieChart(document.getElementById('commitsBarChart'));
+		chart.draw(data, options);
+	}
 }
+
+
+
 
